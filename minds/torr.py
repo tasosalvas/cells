@@ -25,34 +25,36 @@ class AgentMind(object):
     def __init__(self, args):
 
         # It is a matter of time before we snap
-        self.bornbad = 50
+        self.bornbad = 60
 
         # inheritance
         if args != None:
             parent = args[0]
 
             # Crankiness starts off as the game age, but it cycles
+            self.cycle = parent.cycle
             self.crankiness = parent.crankiness
             self.plants = parent.plants
             self.myplant = parent.myplant
 
         else:
+            self.cycle = 0
             self.crankiness = 0
             self.myplant = False
             self.plants = set()
 
         # Our definitions of "starving", "hungry" and "horny"
-        self.starving = 15
-        self.hungry = 40
-        self.horny = 101
+        self.starving = 5
+        self.hungry = 12
+        self.horny = 41
 
         # How many children must a blob have
-        self.birthcontrol = random.randrange(2, 30)
+        self.birthcontrol = random.randrange(2, 16)
         self.children = 0
 
         # Dirt-shifting vars
         self.stonescarried = 0
-        self.groundimpact = random.randrange(0, 3)
+        self.groundimpact = random.randrange(0, 10)
 
         self.pos = None
         self.prevpos = (0,0)
@@ -110,19 +112,21 @@ class AgentMind(object):
         
     def act(self, view, msg):
 
-        # Time
+        # Time and attitude
         self.crankiness += 1
 
+        if self.horny < 2401 and self.cycle > 0:
+            self.hungry += (self.crankiness/10)
+            # is this useful? no matter, I like the symbolism :p
+            self.horny += (self.crankiness/10)
+
         if (self.crankiness == self.bornbad and self.isalover == True and
-            (random.random() < 0.6)):
+            (random.random() < 0.3)):
             self.become_warrior()
 
-        if self.crankiness == any([1,self.bornbad/2,self.bornbad]):
-            self.attackalert = False
-
         if self.crankiness >= (self.bornbad * 1.5):
+            self.cycle += 1
             self.crankiness = 0
-            self.attackalert = False
 
         # Bearings
         me = view.get_me()
@@ -136,18 +140,20 @@ class AgentMind(object):
             if m[0] == MessageType.ATTACK:
                 if self.attackalert == False:
                     self.attackalert = ((m[1] + random.randrange(-15, 15)),
-                                             (m[2] + random.randrange(-15, 15)))
+                                        (m[2] + random.randrange(-15, 15)))
 
                 alertdistance = self.gimme_distance((m[1],m[2]))
 
                 if alertdistance < self.gimme_distance(self.attackalert):
                     self.attackalert = ((m[1] + random.randrange(-15, 15)),
-                                             (m[2] + random.randrange(-15, 15)))                    
+                                        (m[2] + random.randrange(-15, 15)))                    
 
             if m[0] == MessageType.PLANTATTACK:
-                self.crankiness = self.bornbad - 3
-                self.attackalert = ((m[1] + random.randrange(-5, 5)),
-                                         (m[2] + random.randrange(-5, 5)))
+                alertdistance = self.gimme_distance((m[1],m[2]))
+
+                if alertdistance < self.gimme_distance(self.attackalert):
+                    self.crankiness = self.bornbad - 3
+                    self.attackalert = (m[1], m[2])
 
             if m[0] == MessageType.PLANT:
                 self.plants.add((m[1],m[2],m[3]))
@@ -155,11 +161,9 @@ class AgentMind(object):
                 if self.myplant == False:
                     self.myplant = (m[1],m[2],m[3])
 
-        # Send plant updates
-        if len(plants) > 0:
-            ppos = (px, py) = plants[0].get_pos()
-            self.myplant = (px, py, plants[0].eff)
-            msg.send_message((MessageType.PLANT, px, py, plants[0].eff))
+                if (m[1],m[2]) == self.attackalert:
+                    # Plant secured
+                    self.attackalert = False
 
         # Socialize
         self.peers = 0
@@ -171,12 +175,21 @@ class AgentMind(object):
                 if (len(plants) > 0) :
                     pp = (px, py) = plants[0].get_pos()
                     msg.send_message((MessageType.PLANTATTACK, px, py))
-                    return cells.Action(cells.ACT_EAT)
+                    if me.energy < 2490:
+                        return cells.Action(cells.ACT_EAT)
 
                 return cells.Action(cells.ACT_ATTACK, chum.get_pos())
 
             if chum.get_team() == me.get_team():
                 self.peers += 1
+
+        # Send plant updates
+        if len(plants) > 0:
+            ppos = (px, py) = plants[0].get_pos()
+            self.myplant = (px, py, plants[0].eff)
+
+            msg.send_message((MessageType.PLANT, px, py, plants[0].eff))
+
 
         # Eat to mate (or however it is we do it)
         if ((self.birthcontrol >= self.children) or
@@ -196,13 +209,13 @@ class AgentMind(object):
 
         # Eat if hungry
         hungry = (me.energy < self.hungry)
-        if hungry and energy_here > 1:
+        if hungry and energy_here > 1 and me.energy < self.hungry:
             return cells.Action(cells.ACT_EAT)
 
         # Warriors respond to alerts
-        if self.attackalert != False and self.isalover == False:
+        if self.attackalert != False and not self.isalover:
 
-            if self.gimme_distance(self.attackalert) < 6:
+            if self.gimme_distance(self.attackalert) < 4:
                 self.attackalert = False
 
             elif self.pos != self.prevpos:
@@ -215,7 +228,7 @@ class AgentMind(object):
                 self.prevpos = self.pos
                 return cells.Action(cells.ACT_MOVE, self.nextpos)  
 
-        # Build "fortifications" during peacetime
+        # Build "fortifications"
         if ((self.stonescarried < self.groundimpact) and
             self.myplant != False and energy_here < 2):
 
@@ -239,7 +252,7 @@ class AgentMind(object):
             elif me.loaded:
                 return cells.Action(cells.ACT_DROP)
 
-            if (not me.loaded and not hungry and (random.random() < 0.4) and
+            if (not me.loaded and me.energy > 40 and (random.random() < 0.4) and
                 ((plant_dist < 12) or ((8 < plant_dist < 20) and
                 (abs(mx - plant_pos[0]) < 10 or abs(my - plant_pos[1]) < 10)))):
 
