@@ -19,13 +19,13 @@ class AgentMind(object):
         """ I'm a lover, not a warrior """
 
         self.isalover = False
-        self.hungry += 35
+        self.hungry += 110
         self.wanderlust = 0
 
     def __init__(self, args):
 
         # It is a matter of time before we snap
-        self.bornbad = 220
+        self.bornbad = 50
 
         # inheritance
         if args != None:
@@ -42,9 +42,9 @@ class AgentMind(object):
             self.plants = set()
 
         # Our definitions of "starving", "hungry" and "horny"
-        self.starving = 5
-        self.hungry = 15
-        self.horny = 51
+        self.starving = 15
+        self.hungry = 40
+        self.horny = 101
 
         # How many children must a blob have
         self.birthcontrol = random.randrange(2, 30)
@@ -117,8 +117,12 @@ class AgentMind(object):
             (random.random() < 0.6)):
             self.become_warrior()
 
+        if self.crankiness == any([1,self.bornbad/2,self.bornbad]):
+            self.attackalert = False
+
         if self.crankiness >= (self.bornbad * 1.5):
             self.crankiness = 0
+            self.attackalert = False
 
         # Bearings
         me = view.get_me()
@@ -167,6 +171,7 @@ class AgentMind(object):
                 if (len(plants) > 0) :
                     pp = (px, py) = plants[0].get_pos()
                     msg.send_message((MessageType.PLANTATTACK, px, py))
+                    return cells.Action(cells.ACT_EAT)
 
                 return cells.Action(cells.ACT_ATTACK, chum.get_pos())
 
@@ -174,7 +179,8 @@ class AgentMind(object):
                 self.peers += 1
 
         # Eat to mate (or however it is we do it)
-        if (self.birthcontrol >= self.children):
+        if ((self.birthcontrol >= self.children) or
+            (self.peers == 0 and len(plants) > 0)):
 
             if (me.energy >= self.horny):
                 self.vector = random.choice(self.dirs)
@@ -196,7 +202,7 @@ class AgentMind(object):
         # Warriors respond to alerts
         if self.attackalert != False and self.isalover == False:
 
-            if self.attackalert == self.pos:
+            if self.gimme_distance(self.attackalert) < 6:
                 self.attackalert = False
 
             elif self.pos != self.prevpos:
