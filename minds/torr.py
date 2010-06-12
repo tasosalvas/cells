@@ -46,7 +46,7 @@ class AgentMind(object):
         # Our definitions of "starving", "hungry" and "horny"
         self.starving = 5
         self.hungry = 12
-        self.horny = 41
+        self.horny = 51
 
         # How many children must a blob have
         self.birthcontrol = random.randrange(2, 16)
@@ -115,7 +115,7 @@ class AgentMind(object):
         # Time and attitude
         self.crankiness += 1
 
-        if self.horny < 2401 and self.cycle > 0:
+        if len(self.plants) != 0 and (self.horny < 2401 and self.cycle > 0):
             self.hungry += (self.crankiness/10)
             # is this useful? no matter, I like the symbolism :p
             self.horny += (self.crankiness/10)
@@ -193,7 +193,8 @@ class AgentMind(object):
 
         # Eat to mate (or however it is we do it)
         if ((self.birthcontrol >= self.children) or
-            (self.peers == 0 and len(plants) > 0)):
+            (self.peers < 2 and len(plants) > 0) or
+            (me.energy >= self.horny and self.isalover)):
 
             if (me.energy >= self.horny):
                 self.vector = random.choice(self.dirs)
@@ -204,7 +205,7 @@ class AgentMind(object):
                                                       self.nextpos[1],
                                                       self))
 
-            if (me.energy < self.horny) and energy_here > 5:
+            if (me.energy < self.horny) and energy_here > 3:
                 return cells.Action(cells.ACT_EAT)
 
         # Eat if hungry
